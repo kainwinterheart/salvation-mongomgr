@@ -28,7 +28,7 @@ my %connection = ( discovery => true );
 my @add_hosts = ();
 my @exclude_hosts = ();
 my $auth_db_name = undef;
-my $no_auth_config_file = false;
+my $use_auth = false;
 my $discovery = undef;
 
 GetOptions(
@@ -38,11 +38,11 @@ GetOptions(
     'discovery!'=> \$discovery,
     'config=s' => \$connection{ 'config_file' },
     'auth-config=s' => \$connection{ 'auth_config_file' },
-    'no-auth-config!' => \$no_auth_config_file,
+    'auth!' => \$use_auth,
     'auth-db=s' => \$auth_db_name,
 );
 
-if( $no_auth_config_file ) {
+unless( $use_auth ) {
 
     $connection{ 'auth_config_file' } = undef;
 }
