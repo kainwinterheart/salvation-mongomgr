@@ -38,7 +38,7 @@ sub new {
 
         my $rv = from_json( scalar( read_file( $auth_config_file ) ) );
 
-        TC -> asssert( $rv, sprintf( 'HashRef(
+        Salvation::TC -> assert( $rv, sprintf( 'HashRef(
             HashRef(
                 HashRef(
                     Str :login!,

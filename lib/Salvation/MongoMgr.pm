@@ -42,6 +42,7 @@ sub compare_indexes {
     my ( $self, $collections ) = @_;
     my @missing = ();
     my $hosts_count = undef;
+    my %ignore_hosts = ();
 
     Salvation::TC -> assert( $collections, 'ArrayRef[Str]' );
 
@@ -50,6 +51,8 @@ sub compare_indexes {
         my %tree = ();
 
         foreach my $host ( @{ $self -> hosts_list() } ) {
+
+            next if exists $ignore_hosts{ $host };
 
             my $mgr = $self -> new(
                 connection => {
@@ -60,17 +63,27 @@ sub compare_indexes {
                 discovery => false,
             );
 
-            foreach my $index ( $mgr
+            my @indexes = eval{ $mgr
                 -> { 'connection' }
                 -> get_collection( $collection )
-                -> get_indexes()
-            ) {
+                -> get_indexes() };
 
-                Salvation::TC -> assert( $index, 'HashRef(
+            if( $@ ) {
+
+                print STDERR $@, "\n";
+                $ignore_hosts{ $host } = 1;
+                $hosts_count //= $self -> hosts_count();
+                --$hosts_count;
+                next;
+            }
+
+            foreach my $index ( @indexes ) {
+
+                next unless Salvation::TC -> is( $index, 'HashRef(
                     HashRef[Int] :key!
                 )' );
 
-                my $dest = $tree{ join( "\0", map( { join( ':', ( $_, $index -> { $_ } ) ) }
+                my $dest = $tree{ join( "\0", map( { join( ':', ( $_, $index -> { 'key' } -> { $_ } ) ) }
                     sort( keys( %{ $index -> { 'key' } } ) ) ) ) } //= {
 
                     hosts => [],
@@ -89,7 +102,7 @@ sub compare_indexes {
 
                 push( @missing, {
                     index => $data -> { 'index' },
-                    hosts => $self -> remaining_hosts( @{ $data -> { 'hosts' } } ),
+                    hosts => [ grep( { ! exists $ignore_hosts{ $_ } } @{ $self -> remaining_hosts( @{ $data -> { 'hosts' } } ) } ) ],
                 } );
             }
         }
@@ -244,15 +257,6 @@ sub _run_admin_command {
 
     my ( $self, $spec ) = @_;
 
-#     $self -> { 'admin_db' } //= $self -> new(
-#         connection => {
-#             %{ $self -> { '_connection_args' } },
-#             db => 'admin',
-#             use_auth_for => $self -> { 'connection' } -> { 'use_auth_for' },
-#         }
-#     ) -> { 'connection' } -> get_database();
-#
-#     return $self -> { 'admin_db' } -> run_command( $spec );
     return $self -> { 'connection' } -> get_database( 'admin' ) -> run_command( $spec );
 }
 
