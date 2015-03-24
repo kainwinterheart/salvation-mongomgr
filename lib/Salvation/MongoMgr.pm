@@ -27,9 +27,9 @@ sub new {
         $args{ 'discovery' } = true;
     }
 
-    $self -> { '_connection_args' } = delete( $self -> { 'connection' } );
-
     my $self = bless( \%args, ( ref( $proto ) || $proto ) );
+
+    $self -> { '_connection_args' } = delete( $self -> { 'connection' } );
 
     $self -> { 'connection' } = Salvation::MongoMgr::Connection
         -> new( %{ $self -> { '_connection_args' } } );
@@ -231,7 +231,7 @@ sub metadata {
         Salvation::TC -> assert( $rv, 'HashRef(
             Str :msg,
             ArrayRef[Str] :hosts,
-            Str :me!
+            Str :me
         )' );
 
         $self -> { 'metadata' } = $rv;
@@ -244,6 +244,15 @@ sub _run_admin_command {
 
     my ( $self, $spec ) = @_;
 
+#     $self -> { 'admin_db' } //= $self -> new(
+#         connection => {
+#             %{ $self -> { '_connection_args' } },
+#             db => 'admin',
+#             use_auth_for => $self -> { 'connection' } -> { 'use_auth_for' },
+#         }
+#     ) -> { 'connection' } -> get_database();
+#
+#     return $self -> { 'admin_db' } -> run_command( $spec );
     return $self -> { 'connection' } -> get_database( 'admin' ) -> run_command( $spec );
 }
 

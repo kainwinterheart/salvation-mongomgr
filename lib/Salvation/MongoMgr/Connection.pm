@@ -8,7 +8,7 @@ use feature 'state';
 use JSON 'from_json';
 use File::Slurp 'read_file';
 use Salvation::TC ();
-use MongoDB::MongoClient ();
+use MongoDB ();
 
 
 sub new {
@@ -23,8 +23,14 @@ sub new {
         Int :query_timeout,
         Int :wtimeout,
         Str :auth_db_name,
-        Str :host
+        Str :host,
+        Str :use_auth_for
     )' );
+
+    unless( exists $args{ 'use_auth_for' } ) {
+
+        $args{ 'use_auth_for' } = $args{ 'db' };
+    }
 
     my $self = bless( \%args, ( ref( $proto ) || $proto ) );
 
@@ -40,13 +46,13 @@ sub new {
                 ) :%s!
             ) :db_auth!
 
-        )', $self -> { 'db' } ) );
+        )', $self -> { 'use_auth_for' } ) );
 
         $self -> { '_auth_info' } = $rv;
 
     } else {
 
-        $self -> { '_auth_info' } = { db_auth => { $self -> { 'db' } => {} } };
+        $self -> { '_auth_info' } = { db_auth => { $self -> { 'use_auth_for' } => {} } };
     }
 
     $self -> { '_mongo_servers_list' } = join( ',', @{ $self -> servers_list() } );
@@ -61,18 +67,18 @@ sub _connect {
     state $HMONGO = {};
 
     if(
-        exists $HMONGO{ $mongo_servers_list }
-        && ( $HMONGO{ $mongo_servers_list } -> { 'pid' } == $$ )
+        exists $HMONGO -> { $mongo_servers_list }
+        && ( $HMONGO -> { $mongo_servers_list } -> { 'pid' } == $$ )
     ) {
 
-        $self -> { '_connection' } = $HMONGO{ $mongo_servers_list } -> { 'handle' };
+        $self -> { '_connection' } = $HMONGO -> { $mongo_servers_list } -> { 'handle' };
 
     } else {
 
         my ( $login, $password ) = @{ $self
             -> { '_auth_info' }
             -> { 'db_auth' }
-            -> { $self -> { 'db' } }
+            -> { $self -> { 'use_auth_for' } }
         }{ 'login', 'password' };
 
         $self -> { '_connection' } = MongoDB::MongoClient -> new(
@@ -89,7 +95,7 @@ sub _connect {
             ( defined $password ? ( password => $password ) : () ),
         );
 
-        $HMONGO{ $mongo_servers_list } = {
+        $HMONGO -> { $mongo_servers_list } = {
             handle => $self -> { '_connection' },
             pid => $$,
         };
@@ -131,7 +137,7 @@ sub servers_list {
 
             my $config = from_json( scalar( read_file( $self -> config_file() ) ) );
 
-            TC -> assert( $config, 'HashRef( ArrayRef[Str] :servers_list! )' );
+            Salvation::TC -> assert( $config, 'HashRef( ArrayRef[Str] :servers_list! )' );
 
             $self -> { 'servers_list' } = $config -> { 'servers_list' };
         }
