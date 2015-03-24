@@ -1,0 +1,5 @@
+bin/mongomgr.pl
+lib/Salvation/MongoMgr.pm
+lib/Salvation/MongoMgr/Connection.pm
+Makefile.PL
+MANIFEST			This list of files
