@@ -39,11 +39,13 @@ sub new {
 
 sub compare_indexes {
 
-    my ( $self, @collections ) = @_;
+    my ( $self, $collections ) = @_;
     my @missing = ();
     my $hosts_count = undef;
 
-    foreach my $collection ( @collections ) {
+    Salvation::TC -> assert( $collections, 'ArrayRef[Str]' );
+
+    foreach my $collection ( @$collections ) {
 
         my %tree = ();
 
