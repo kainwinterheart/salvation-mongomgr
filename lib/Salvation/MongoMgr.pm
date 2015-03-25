@@ -8,7 +8,7 @@ use Salvation::TC ();
 use List::MoreUtils 'uniq';
 use Salvation::MongoMgr::Connection ();
 
-our $VERSION = 0.01;
+our $VERSION = 0.02;
 
 sub new {
 
