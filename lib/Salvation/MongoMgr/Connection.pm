@@ -29,6 +29,8 @@ sub new {
         Bool :find_master
     )' );
 
+    $args{ 'auth_db_name' } //= 'admin';
+
     unless( exists $args{ 'find_master' } ) {
 
         $args{ 'find_master' } = true;
@@ -94,7 +96,7 @@ sub _connect {
             auto_connect => 1,
             w => 1,
             dt_type => undef,
-            db_name => ( $self -> { 'auth_db_name' } // 'admin' ),
+            db_name => $self -> { 'auth_db_name' },
             ( defined $login ? ( username  => $login ) : () ),
             ( defined $password ? ( password => $password ) : () ),
         );
