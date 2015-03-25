@@ -124,4 +124,62 @@ sub run_command {
     return;
 }
 
+'db=s' => \$connection{ 'db' },
+'add=s' => \@add_hosts,
+'exclude=s' => \@exclude_hosts,
+'discovery!'=> \$discovery,
+'config=s' => \$connection{ 'config_file' },
+'auth-config=s' => \$connection{ 'auth_config_file' },
+'auth!' => \$use_auth,
+'auth-db=s' => \$auth_db_name,
+'pretty!' => \$pretty,
+'shell!' => \$shell,
+sub help {
+
+    print <<HELP;
+Required options:
+    --db [db name]  Database name
+    --config [file] Path to driver config file
+
+Optional options:
+    --add [host]    Explicitly add host to list
+    --exclude [host]    Explicitly exclude host from list
+    --no-discovery  Turn automatic hosts' discovery off
+    --auth-config   Path to auth config file
+                    By default it is the same as driver config file
+    --no-auth   Do not use auth
+    --auth-db   Authentication database
+                Default is "admin"
+    --no-pretty Turn pretty output off
+    --shell Shell mode
+
+Known commands:
+    compare_indexes [collection1] [collectionN] Compare indexes for those
+                                                collections between all hosts
+    hosts_list  List all known hosts
+    get_indexes [collection] ([host])    List all indexes for specified
+                                         collection
+                                         By default host is current database host
+    reload  Force client to reload cached data
+    list_masters    List all known masters
+    shell [host] [cmd] ...  Change shell to one specified by cmd which is one of
+                            the following:
+                                - mongo
+                                - files (for mongofiles)
+                            For current database host use dot symbol (.)
+                            [cmd] could be followed by any number of arguments
+                            being passed to the new shell
+    exec [host] [cmd] ...   Exec command specified by cmd which is one of
+                            the following:
+                                - mongo
+                                - files (for mongofiles)
+                            For current database host use dot symbol (.)
+                            [cmd] could be followed by any number of arguments
+                            being passed to the command being run
+    run [host] ...  Run database command via mongo shell on specific host
+                    For current database host use dot symbol (.)
+HELP
+;
+}
+
 __END__
