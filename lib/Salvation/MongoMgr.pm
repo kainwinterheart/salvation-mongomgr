@@ -10,7 +10,6 @@ use Salvation::MongoMgr::Connection ();
 
 our $VERSION = 0.01;
 
-
 sub new {
 
     my ( $proto, %args ) = @_;
@@ -35,6 +34,63 @@ sub new {
         -> new( %{ $self -> { '_connection_args' } } );
 
     return $self;
+}
+
+sub list_masters {
+
+    my ( $self ) = @_;
+    my @list = ();
+
+    foreach my $host ( @{ $self -> hosts_list() } ) {
+
+        my $mgr = $self -> new(
+            connection => {
+                %{ $self -> { '_connection_args' } },
+                host => $host,
+            },
+            add_hosts => [ $host ],
+            discovery => false,
+        );
+
+        eval {
+
+            if( $mgr -> metadata() -> { 'ismaster' } ) {
+
+                push( @list, $host );
+            }
+        };
+
+        if( $@ ) {
+
+            print STDERR $@, "\n";
+        }
+    }
+
+    return \@list;
+}
+
+sub get_indexes {
+
+    my ( $self, $args ) = @_;
+    my ( $collection, $host ) = @$args;
+
+    Salvation::TC -> assert( [ $collection, $host ], 'ArrayRef( Str collection, Maybe[Str] host )' );
+
+    my $mgr = ( defined $host ? $self -> new(
+        connection => {
+            %{ $self -> { '_connection_args' } },
+            host => $host,
+        },
+        add_hosts => [ $host ],
+        discovery => false,
+    ) : $self );
+
+    local $MongoDB::Cursor::slave_okay = 1;
+
+    return [ $mgr
+        -> { 'connection' }
+        -> get_collection( $collection )
+        -> get_indexes() ];
 }
 
 sub compare_indexes {
@@ -62,6 +118,8 @@ sub compare_indexes {
                 add_hosts => [ $host ],
                 discovery => false,
             );
+
+            local $MongoDB::Cursor::slave_okay = 1;
 
             my @indexes = eval{ $mgr
                 -> { 'connection' }

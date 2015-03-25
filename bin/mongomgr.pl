@@ -19,7 +19,7 @@ use Salvation::MongoMgr ();
 
 use Salvation::TC::Utils;
 
-enum 'KnownCommands', [ 'compare_indexes', 'hosts_list' ];
+enum 'KnownCommands', [ 'compare_indexes', 'hosts_list', 'get_indexes', 'reload', 'list_masters' ];
 
 no Salvation::TC::Utils;
 
@@ -109,7 +109,7 @@ sub run_command {
     Salvation::TC -> assert( $cmd, 'KnownCommands' );
 
     my $rv = $mgr -> $cmd( $args );
-    my $json = JSON -> new() -> utf8( 1 );
+    my $json = JSON -> new() -> utf8( 1 ) -> allow_blessed( 1 );
 
     if( $opts -> { 'pretty' } ) {
 
