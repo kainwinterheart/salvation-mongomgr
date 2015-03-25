@@ -83,11 +83,7 @@ sub _connect {
 
     } else {
 
-        my ( $login, $password ) = @{ $self
-            -> { '_auth_info' }
-            -> { 'db_auth' }
-            -> { $self -> { 'use_auth_for' } }
-        }{ 'login', 'password' };
+        my ( $login, $password ) = @{ $self -> credentials() }{ 'login', 'password' };
 
         $self -> { '_connection' } = MongoDB::MongoClient -> new(
             host => "mongodb://${mongo_servers_list}",
@@ -110,6 +106,21 @@ sub _connect {
     }
 
     return $self -> { '_connection' };
+}
+
+sub credentials {
+
+    my ( $self ) = @_;
+    my ( $login, $password ) = @{ $self
+        -> { '_auth_info' }
+        -> { 'db_auth' }
+        -> { $self -> { 'use_auth_for' } }
+    }{ 'login', 'password' };
+
+    return {
+        login => $login,
+        password => $password,
+    };
 }
 
 sub config_file {

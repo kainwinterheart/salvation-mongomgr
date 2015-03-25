@@ -19,7 +19,10 @@ use Salvation::MongoMgr ();
 
 use Salvation::TC::Utils;
 
-enum 'KnownCommands', [ 'compare_indexes', 'hosts_list', 'get_indexes', 'reload', 'list_masters' ];
+enum 'KnownCommands', [
+    'compare_indexes', 'hosts_list', 'get_indexes', 'reload', 'list_masters',
+    'shell', 'exec',
+];
 
 no Salvation::TC::Utils;
 

@@ -14,6 +14,7 @@ WriteMakefile (
         'Salvation::TC' => 0,
         'File::Slurp' => 0,
         'Getopt::Long' => 0,
+        'String::ShellQuote' => 0,
     },
     META_MERGE => {
     "meta-spec" => { version => 2 },

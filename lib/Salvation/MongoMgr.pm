@@ -6,9 +6,10 @@ use boolean;
 
 use Salvation::TC ();
 use List::MoreUtils 'uniq';
+use String::ShellQuote 'shell_quote';
 use Salvation::MongoMgr::Connection ();
 
-our $VERSION = 0.02;
+our $VERSION = 0.03;
 
 sub new {
 
@@ -34,6 +35,142 @@ sub new {
         -> new( %{ $self -> { '_connection_args' } } );
 
     return $self;
+}
+
+sub exec {
+
+    my ( $self, $args ) = @_;
+    my $host = shift( @$args );
+    my $cmd = shift( @$args );
+
+    Salvation::TC -> assert( [ $host, $cmd, $args ], 'ArrayRef( Str host, Str cmd, ArrayRef[Str] args )' );
+
+    if( $host eq '.' ) {
+
+        undef( $host );
+    }
+
+    $args = $self -> _shellcmd( $host, $cmd, $args );
+
+    print STDERR join( ' ', '+', @$args ), "\n";
+
+    if( ( my $status = system( @$args ) ) != 0 ) {
+
+        $status >>= 8;
+        die( "Command failed with code ${status}" );
+    }
+
+    return;
+}
+
+sub shell {
+
+    my ( $self, $args ) = @_;
+    my $host = shift( @$args );
+    my $cmd = shift( @$args );
+
+    Salvation::TC -> assert( [ $host, $cmd, $args ], 'ArrayRef( Str host, Str cmd, ArrayRef[Str] args )' );
+
+    if( $host eq '.' ) {
+
+        undef( $host );
+    }
+
+    $args = $self -> _shellcmd( $host, $cmd, $args );
+
+    print STDERR join( ' ', '+', @$args ), "\n";
+
+    exec @$args;
+}
+
+sub _shellcmd {
+
+    my ( $self, $host, $mode, $args ) = @_;
+    my $mgr = ( defined $host ? $self -> new(
+        connection => {
+            %{ $self -> { '_connection_args' } },
+            host => $host,
+            find_master => false,
+        },
+        add_hosts => [ $host ],
+        discovery => false,
+    ) : $self );
+
+    # Ensures that we have connection to the host
+    $mgr -> get_connection();
+
+    my $cmd = 'mongo';
+
+    if( defined $mode ) {
+
+        $cmd = {
+            'files' => 'mongofiles',
+            'mongo' => $cmd,
+
+        } -> { $mode };
+
+        die( "Unknown mode: ${mode}" ) unless defined $cmd;
+    }
+
+    my @db_args = ();
+
+    if( $cmd eq 'mongo' ) {
+
+        push( @db_args, (
+            shell_quote( sprintf( '%s/%s',
+                join( ',', @{ $mgr -> { 'connection' } -> servers_list() } )
+                $self -> { 'connection' } -> { 'db' }
+            ) ),
+        ) );
+    }
+
+    if( $cmd eq 'mongofiles' ) {
+
+        push( @db_args, (
+            '-h', shell_quote( $mgr -> { 'connection' } -> servers_list() -> [ 0 ] ),
+            '--db', shell_quote( $self -> { 'connection' } -> { 'db' } ),
+        ) );
+    }
+
+    my ( $login, $password ) = @{ $mgr -> { 'connection' } -> credentials() }{ 'login', 'password' };
+
+    return [
+        $cmd, @db_args,
+        ( defined $login ? ( '-u' => shell_quote( $login ) ) : () ),
+        ( defined $password ? ( '-p' => shell_quote( $password ) ) : () ),
+        ( ( defined $login || defined $password ) ? (
+            '--authenticationDatabase', $self -> { 'connection' } -> { 'use_auth_for' },
+        ) : () ),
+        map( { shell_quote( $_ ) } @args ),
+    ];
+}
+
+sub repl_set_status {
+
+    my ( $self, $host ) = @_;
+    my $mgr = ( defined $host ? $self -> new(
+        connection => {
+            %{ $self -> { '_connection_args' } },
+            host => $host,
+            find_master => false,
+        },
+        add_hosts => [ $host ],
+        discovery => false,
+    ) : $self );
+
+    my $rv = $mgr -> _run_admin_command( { replSetGetStatus => 1 } );
+
+    Salvation::TC -> assert( $rv, 'HashRef(
+        ArrayRef[HashRef(
+            Int :_id!,
+            Str :name!,
+            Str :stateStr!
+        )] :members!,
+        Bool :ok!,
+        Str :set!
+    )' );
+
+    return $rv;
 }
 
 sub list_masters {
@@ -105,7 +242,7 @@ sub compare_indexes {
     my %ignore_hosts = ();
 
     Salvation::TC -> assert( $collections, 'ArrayRef[Str]{1,}' );
-    
+
     foreach my $collection ( @$collections ) {
 
         my %tree = ();
@@ -204,11 +341,33 @@ sub hosts_list {
 
                 foreach my $shard ( @{ $self -> list_shards() } ) {
 
+                    my $got_rs_status = false;
+
                     foreach my $host ( split( /\s*,\s*/, $shard -> { 'host' } ) ) {
 
                         $host =~ s/^.+?\///;
+                        $host = lc( $host );
 
-                        push( @out, lc( $host ) );
+                        push( @out, $host );
+
+                        unless( $got_rs_status ) {
+
+                            my $status = eval{ $self -> repl_set_status( $host ) };
+
+                            if( $@ ) {
+
+                                print STDERR "$@\n";
+
+                            } else {
+
+                                foreach my $member ( @{ $status -> { 'members' } } ) {
+
+                                    push( @out, lc( $member -> { 'name' } ) );
+                                }
+
+                                $got_rs_status = true;
+                            }
+                        }
                     }
                 }
 
@@ -220,7 +379,29 @@ sub hosts_list {
 
                 if( exists $metadata -> { 'hosts' } ) {
 
-                    $self -> { 'hosts_list' } = [ map( { lc( $_ ) } @{ $metadata -> { 'hosts' } } ) ];
+                    my @out = ();
+
+                    foreach my $host ( @{ $metadata -> { 'hosts' } } ) {
+
+                        $host = lc( $host );
+
+                        push( @out, $host );
+                        my $status = eval{ $self -> repl_set_status( $host ) };
+
+                        if( $@ ) {
+
+                            print STDERR "$@\n";
+
+                        } else {
+
+                            foreach my $member ( @{ $status -> { 'members' } } ) {
+
+                                push( @out, lc( $member -> { 'name' } ) );
+                            }
+                        }
+                    }
+
+                    $self -> { 'hosts_list' } = \@out;
 
                 } else {
 
