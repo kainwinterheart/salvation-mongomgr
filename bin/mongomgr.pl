@@ -21,7 +21,7 @@ use Salvation::TC::Utils;
 
 enum 'KnownCommands', [
     'compare_indexes', 'hosts_list', 'get_indexes', 'reload', 'list_masters',
-    'shell', 'exec',
+    'shell', 'exec', 'run',
 ];
 
 no Salvation::TC::Utils;

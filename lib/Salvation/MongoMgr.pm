@@ -4,6 +4,7 @@ use strict;
 use warnings;
 use boolean;
 
+use Socket 'AF_INET6';
 use Salvation::TC ();
 use List::MoreUtils 'uniq';
 use String::ShellQuote 'shell_quote';
@@ -37,6 +38,33 @@ sub new {
     return $self;
 }
 
+sub run {
+
+    my ( $self, $args ) = @_;
+    my $host = shift( @$args );
+
+    Salvation::TC -> assert( [ $host, $args ], 'ArrayRef( Str host, ArrayRef[Str] args )' );
+
+    if( $host eq '.' ) {
+
+        undef( $host );
+    }
+
+    my $system_args = $self -> _shellcmd( $host, 'mongo', [] );
+
+    unshift( @$system_args, 'echo', shell_quote( join( ' ', @$args ) ), '|' );
+
+    print STDERR join( ' ', '+', @$system_args ), "\n";
+
+    if( ( my $status = system( join( ' ', @$system_args ) ) ) != 0 ) {
+
+        $status >>= 8;
+        die( "Command failed with code ${status}" );
+    }
+
+    return [];
+}
+
 sub exec {
 
     my ( $self, $args ) = @_;
@@ -60,7 +88,7 @@ sub exec {
         die( "Command failed with code ${status}" );
     }
 
-    return;
+    return [];
 }
 
 sub shell {
@@ -80,7 +108,7 @@ sub shell {
 
     print STDERR join( ' ', '+', @$args ), "\n";
 
-    exec @$args;
+    CORE::exec @$args;
 }
 
 sub _shellcmd {
@@ -97,7 +125,7 @@ sub _shellcmd {
     ) : $self );
 
     # Ensures that we have connection to the host
-    $mgr -> get_connection();
+    $mgr -> { 'connection' } -> get_connection();
 
     my $cmd = 'mongo';
 
@@ -118,7 +146,7 @@ sub _shellcmd {
 
         push( @db_args, (
             shell_quote( sprintf( '%s/%s',
-                join( ',', @{ $mgr -> { 'connection' } -> servers_list() } )
+                join( ',', @{ $mgr -> { 'connection' } -> servers_list() } ),
                 $self -> { 'connection' } -> { 'db' }
             ) ),
         ) );
@@ -132,6 +160,28 @@ sub _shellcmd {
         ) );
     }
 
+    foreach my $node ( @{ $mgr -> { 'connection' } -> servers_list() } ) {
+
+        my @hp = split( /:/, $node );
+        my $port = pop( @hp );
+        my $host = join( ':', @hp );
+        my $stop = ( $cmd eq 'mongofiles' );
+
+        foreach my $ai ( Socket::getaddrinfo( $host, $port ) ) {
+
+            next unless Salvation::TC -> is( $ai, 'HashRef( Int :family! )' );
+
+            if( $ai -> { 'family' } == AF_INET6 ) {
+
+                push( @db_args, '--ipv6' );
+                $stop = true;
+                last;
+            }
+        }
+
+        last if $stop;
+    }
+
     my ( $login, $password ) = @{ $mgr -> { 'connection' } -> credentials() }{ 'login', 'password' };
 
     return [
@@ -139,9 +189,9 @@ sub _shellcmd {
         ( defined $login ? ( '-u' => shell_quote( $login ) ) : () ),
         ( defined $password ? ( '-p' => shell_quote( $password ) ) : () ),
         ( ( defined $login || defined $password ) ? (
-            '--authenticationDatabase', $self -> { 'connection' } -> { 'use_auth_for' },
+            '--authenticationDatabase', $self -> { 'connection' } -> { 'auth_db_name' },
         ) : () ),
-        map( { shell_quote( $_ ) } @args ),
+        map( { shell_quote( $_ ) } @$args ),
     ];
 }
 
