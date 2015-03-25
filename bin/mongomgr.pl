@@ -21,12 +21,18 @@ use Salvation::TC::Utils;
 
 enum 'KnownCommands', [
     'compare_indexes', 'hosts_list', 'get_indexes', 'reload', 'list_masters',
-    'shell', 'exec', 'run',
+    'shell', 'exec', 'run', 'help',
 ];
 
 no Salvation::TC::Utils;
 
 ++$|;
+
+if( scalar( @ARGV ) == 0 ) {
+
+    help();
+    exit( 0 );
+}
 
 {
     my %connection = ( discovery => true );
@@ -37,6 +43,7 @@ no Salvation::TC::Utils;
     my $discovery = undef;
     my $pretty = true;
     my $shell = false;
+    my $help = undef;
 
     GetOptions(
         'db=s' => \$connection{ 'db' },
@@ -49,7 +56,14 @@ no Salvation::TC::Utils;
         'auth-db=s' => \$auth_db_name,
         'pretty!' => \$pretty,
         'shell!' => \$shell,
+        'help!' => \$help,
     );
+
+    if( $help ) {
+
+        help();
+        exit( 0 );
+    }
 
     if( $use_auth ) {
 
@@ -111,32 +125,32 @@ sub run_command {
 
     Salvation::TC -> assert( $cmd, 'KnownCommands' );
 
-    my $rv = $mgr -> $cmd( $args );
-    my $json = JSON -> new() -> utf8( 1 ) -> allow_blessed( 1 );
+    if( $cmd eq 'help' ) {
 
-    if( $opts -> { 'pretty' } ) {
+        help();
 
-        $json = $json -> pretty();
+    } else {
+
+        my $rv = $mgr -> $cmd( $args );
+        my $json = JSON -> new() -> utf8( 1 ) -> allow_blessed( 1 );
+
+        if( $opts -> { 'pretty' } ) {
+
+            $json = $json -> pretty();
+        }
+
+        print( $json -> encode( $rv ) . "\n" );
     }
-
-    print( $json -> encode( $rv ) . "\n" );
 
     return;
 }
 
-'db=s' => \$connection{ 'db' },
-'add=s' => \@add_hosts,
-'exclude=s' => \@exclude_hosts,
-'discovery!'=> \$discovery,
-'config=s' => \$connection{ 'config_file' },
-'auth-config=s' => \$connection{ 'auth_config_file' },
-'auth!' => \$use_auth,
-'auth-db=s' => \$auth_db_name,
-'pretty!' => \$pretty,
-'shell!' => \$shell,
 sub help {
 
     print <<HELP;
+Example usage:
+    $0 --db [db name] --config [file] [command]
+
 Required options:
     --db [db name]  Database name
     --config [file] Path to driver config file
@@ -152,6 +166,7 @@ Optional options:
                 Default is "admin"
     --no-pretty Turn pretty output off
     --shell Shell mode
+    --help  Print this message and exit
 
 Known commands:
     compare_indexes [collection1] [collectionN] Compare indexes for those
@@ -178,6 +193,7 @@ Known commands:
                             being passed to the command being run
     run [host] ...  Run database command via mongo shell on specific host
                     For current database host use dot symbol (.)
+    help    Prints this message
 HELP
 ;
 }
