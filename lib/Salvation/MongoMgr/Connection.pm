@@ -3,6 +3,7 @@ package Salvation::MongoMgr::Connection;
 use utf8;
 use strict;
 use warnings;
+use boolean;
 use feature 'state';
 
 use JSON 'from_json';
@@ -24,8 +25,14 @@ sub new {
         Int :wtimeout,
         Str :auth_db_name,
         Str :host,
-        Str :use_auth_for
+        Str :use_auth_for,
+        Bool :find_master
     )' );
+
+    unless( exists $args{ 'find_master' } ) {
+
+        $args{ 'find_master' } = true;
+    }
 
     unless( exists $args{ 'use_auth_for' } ) {
 
@@ -64,14 +71,15 @@ sub _connect {
 
     my ( $self ) = @_;
     my $mongo_servers_list = $self -> { '_mongo_servers_list' };
+    my $dsn = join( "\0", $mongo_servers_list, $self -> { 'find_master' } );
     state $HMONGO = {};
 
     if(
-        exists $HMONGO -> { $mongo_servers_list }
-        && ( $HMONGO -> { $mongo_servers_list } -> { 'pid' } == $$ )
+        exists $HMONGO -> { $dsn }
+        && ( $HMONGO -> { $dsn } -> { 'pid' } == $$ )
     ) {
 
-        $self -> { '_connection' } = $HMONGO -> { $mongo_servers_list } -> { 'handle' };
+        $self -> { '_connection' } = $HMONGO -> { $dsn } -> { 'handle' };
 
     } else {
 
@@ -86,7 +94,7 @@ sub _connect {
             timeout => ( $self -> { 'timeout' } // 20_000 ),
             query_timeout => ( $self -> { 'query_timeout' } // 600_000 ), # in ms
             wtimeout => ( $self -> { 'wtimeout' } // 30_000 ),
-            find_master => 1,
+            find_master => $self -> { 'find_master' },
             auto_connect => 1,
             w => 1,
             dt_type => undef,
@@ -95,7 +103,7 @@ sub _connect {
             ( defined $password ? ( password => $password ) : () ),
         );
 
-        $HMONGO -> { $mongo_servers_list } = {
+        $HMONGO -> { $dsn } = {
             handle => $self -> { '_connection' },
             pid => $$,
         };

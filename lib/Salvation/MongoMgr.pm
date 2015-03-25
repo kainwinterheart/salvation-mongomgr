@@ -47,10 +47,13 @@ sub list_masters {
             connection => {
                 %{ $self -> { '_connection_args' } },
                 host => $host,
+                find_master => false,
             },
             add_hosts => [ $host ],
             discovery => false,
         );
+
+        local $MongoDB::Cursor::slave_okay = 1;
 
         eval {
 
@@ -80,6 +83,7 @@ sub get_indexes {
         connection => {
             %{ $self -> { '_connection_args' } },
             host => $host,
+            find_master => false,
         },
         add_hosts => [ $host ],
         discovery => false,
@@ -100,8 +104,8 @@ sub compare_indexes {
     my $hosts_count = undef;
     my %ignore_hosts = ();
 
-    Salvation::TC -> assert( $collections, 'ArrayRef[Str]' );
-
+    Salvation::TC -> assert( $collections, 'ArrayRef[Str]{1,}' );
+    
     foreach my $collection ( @$collections ) {
 
         my %tree = ();
@@ -114,6 +118,7 @@ sub compare_indexes {
                 connection => {
                     %{ $self -> { '_connection_args' } },
                     host => $host,
+                    find_master => false,
                 },
                 add_hosts => [ $host ],
                 discovery => false,
@@ -161,6 +166,7 @@ sub compare_indexes {
                 push( @missing, {
                     index => $data -> { 'index' },
                     hosts => [ grep( { ! exists $ignore_hosts{ $_ } } @{ $self -> remaining_hosts( @{ $data -> { 'hosts' } } ) } ) ],
+                    msg => 'missing',
                 } );
             }
         }
