@@ -123,6 +123,12 @@ sub run_command {
     my ( $mgr, $args, $opts ) = @_;
     my $cmd = shift( @$args );
 
+    unless( defined $cmd ) {
+
+        help();
+        return;
+    }
+
     Salvation::TC -> assert( $cmd, 'KnownCommands' );
 
     if( $cmd eq 'help' ) {
