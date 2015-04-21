@@ -21,7 +21,7 @@ use Salvation::TC::Utils;
 
 enum 'KnownCommands', [
     'compare_indexes', 'hosts_list', 'get_indexes', 'reload', 'list_masters',
-    'shell', 'exec', 'run', 'help',
+    'shell', 'exec', 'run', 'help', 'compare_collection_hashes',
 ];
 
 no Salvation::TC::Utils;
@@ -177,6 +177,9 @@ Optional options:
 Known commands:
     compare_indexes [collection1] [collectionN] Compare indexes for those
                                                 collections between all hosts
+    compare_collection_hashes [collection1] [collectionN] Compare hashes for those
+                                                          collections between all
+                                                          specified configservers
     hosts_list  List all known hosts
     get_indexes [collection] ([host])    List all indexes for specified
                                          collection

@@ -5,12 +5,13 @@ use warnings;
 use boolean;
 
 use Socket 'AF_INET6';
+use Time::HiRes ();
 use Salvation::TC ();
 use List::MoreUtils 'uniq';
 use String::ShellQuote 'shell_quote';
 use Salvation::MongoMgr::Connection ();
 
-our $VERSION = 0.03;
+our $VERSION = 0.04;
 
 sub new {
 
@@ -114,15 +115,7 @@ sub shell {
 sub _shellcmd {
 
     my ( $self, $host, $mode, $args ) = @_;
-    my $mgr = ( defined $host ? $self -> new(
-        connection => {
-            %{ $self -> { '_connection_args' } },
-            host => $host,
-            find_master => false,
-        },
-        add_hosts => [ $host ],
-        discovery => false,
-    ) : $self );
+    my $mgr = $self -> get_host_manager( $host );
 
     # Ensures that we have connection to the host
     $mgr -> { 'connection' } -> get_connection();
@@ -195,19 +188,115 @@ sub _shellcmd {
     ];
 }
 
+sub compare_collection_hashes {
+
+    my ( $self, $collections ) = @_;
+    my @mismatch = ();
+    my $hosts_count = undef;
+    my %ignore_hosts = ();
+    my %hashes = ();
+
+    Salvation::TC -> assert( $collections, 'ArrayRef[Str]{1,}' );
+
+    foreach my $collection ( @$collections ) {
+
+        my %tree = ();
+        my %retries = ();
+        my $max_retries = 5;
+        my $only_cached = true;
+
+        foreach my $host ( @{ $self -> hosts_list() } ) {
+
+            next if exists $ignore_hosts{ $host };
+
+            local $MongoDB::Cursor::slave_okay = 1;
+
+            my $hash = $hashes{ $host } //= eval{ $self -> db_hash(
+                $host, only_cached => $only_cached,
+            ) };
+
+            $only_cached = true;
+
+            if( $@ ) {
+
+                print STDERR $@, "\n";
+                $ignore_hosts{ $host } = 1;
+                $hosts_count //= $self -> hosts_count();
+                --$hosts_count;
+                next;
+            }
+
+            unless( exists $hash -> { 'collections' } -> { $collection } ) {
+
+                if( ++$retries{ $host } == $max_retries ) {
+
+                    $only_cached = false;
+                    redo;
+
+                } elsif( $retries{ $host } < $max_retries ) {
+
+                    redo;
+                }
+            }
+
+            my $hash_str = ( $hash -> { 'collections' } -> { $collection } // '' );
+            my $dest = $tree{ $hash_str } //= {
+
+                hosts => [],
+                hash => $hash_str,
+            };
+
+            push( @{ $dest -> { 'hosts' } }, $host );
+        }
+
+        $hosts_count //= $self -> hosts_count();
+
+        while( my ( undef, $data ) = each( %tree ) ) {
+
+            if( scalar( @{ $data -> { 'hosts' } } ) != $hosts_count ) {
+
+                push( @mismatch, {
+                    hash => $data -> { 'hash' },
+                    collection => $collection,
+                    hosts => [ grep( { ! exists $ignore_hosts{ $_ } } @{ $self -> remaining_hosts( @{ $data -> { 'hosts' } } ) } ) ],
+                    msg => 'mismatch',
+                } );
+            }
+        }
+    }
+
+    return \@mismatch;
+}
+
+sub db_hash {
+
+    my ( $self, $host, %args ) = @_;
+    my $mgr = $self -> get_host_manager( $host );
+    my $rv = $mgr -> _run_admin_command( { dbHash => 1 } );
+
+    Salvation::TC -> assert( $rv, 'HashRef(
+        HashRef[Str] :collections!,
+        ArrayRef[Str] :fromCache!,
+        Bool :ok!,
+        Str :md5!
+    )' );
+
+    if( $args{ 'only_cached' } ) {
+
+        my %collections = ();
+
+        @collections{ @{ $rv -> { 'fromCache' } } } = @$rv{ @{ $rv -> { 'fromCache' } } };
+
+        $rv -> { 'collections' } = \%collections;
+    }
+
+    return $rv;
+}
+
 sub repl_set_status {
 
     my ( $self, $host ) = @_;
-    my $mgr = ( defined $host ? $self -> new(
-        connection => {
-            %{ $self -> { '_connection_args' } },
-            host => $host,
-            find_master => false,
-        },
-        add_hosts => [ $host ],
-        discovery => false,
-    ) : $self );
-
+    my $mgr = $self -> get_host_manager( $host );
     my $rv = $mgr -> _run_admin_command( { replSetGetStatus => 1 } );
 
     Salvation::TC -> assert( $rv, 'HashRef(
@@ -230,15 +319,7 @@ sub list_masters {
 
     foreach my $host ( @{ $self -> hosts_list() } ) {
 
-        my $mgr = $self -> new(
-            connection => {
-                %{ $self -> { '_connection_args' } },
-                host => $host,
-                find_master => false,
-            },
-            add_hosts => [ $host ],
-            discovery => false,
-        );
+        my $mgr = $self -> get_host_manager( $host );
 
         local $MongoDB::Cursor::slave_okay = 1;
 
@@ -266,15 +347,7 @@ sub get_indexes {
 
     Salvation::TC -> assert( [ $collection, $host ], 'ArrayRef( Str collection, Maybe[Str] host )' );
 
-    my $mgr = ( defined $host ? $self -> new(
-        connection => {
-            %{ $self -> { '_connection_args' } },
-            host => $host,
-            find_master => false,
-        },
-        add_hosts => [ $host ],
-        discovery => false,
-    ) : $self );
+    my $mgr = $self -> get_host_manager( $host );
 
     local $MongoDB::Cursor::slave_okay = 1;
 
@@ -301,15 +374,7 @@ sub compare_indexes {
 
             next if exists $ignore_hosts{ $host };
 
-            my $mgr = $self -> new(
-                connection => {
-                    %{ $self -> { '_connection_args' } },
-                    host => $host,
-                    find_master => false,
-                },
-                add_hosts => [ $host ],
-                discovery => false,
-            );
+            my $mgr = $self -> get_host_manager( $host );
 
             local $MongoDB::Cursor::slave_okay = 1;
 
@@ -562,6 +627,21 @@ sub reload {
     delete( @$self{ 'metadata', 'list_shards', 'hosts_list' } );
 
     return;
+}
+
+sub get_host_manager {
+
+    my ( $self, $host ) = @_;
+
+    return ( defined $host ? $self -> new(
+        connection => {
+            %{ $self -> { '_connection_args' } },
+            host => $host,
+            find_master => false,
+        },
+        add_hosts => [ $host ],
+        discovery => false,
+    ) : $self );
 }
 
 
