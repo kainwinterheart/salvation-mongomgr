@@ -272,7 +272,7 @@ sub db_hash {
 
     my ( $self, $host, %args ) = @_;
     my $mgr = $self -> get_host_manager( $host );
-    my $rv = $mgr -> _run_admin_command( { dbHash => 1 } );
+    my $rv = $mgr -> _run_config_command( { dbHash => 1 } );
 
     Salvation::TC -> assert( $rv, 'HashRef(
         HashRef[Str] :collections!,
@@ -618,6 +618,13 @@ sub _run_admin_command {
     my ( $self, $spec ) = @_;
 
     return $self -> { 'connection' } -> get_database( 'admin' ) -> run_command( $spec );
+}
+
+sub _run_config_command {
+
+    my ( $self, $spec ) = @_;
+
+    return $self -> { 'connection' } -> get_database( 'config' ) -> run_command( $spec );
 }
 
 sub reload {
