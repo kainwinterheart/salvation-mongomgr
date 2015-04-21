@@ -255,7 +255,7 @@ sub compare_collection_hashes {
 
         while( my ( undef, $data ) = each( %tree ) ) {
 
-            if( scalar( @{ $data -> { 'hosts' } } ) != $hosts_count ) {
+            if( ( scalar( @{ $data -> { 'hosts' } } ) != $hosts_count ) || ( $data -> { 'hash' } eq '' ) ) {
 
                 push( @mismatch, {
                     hash => $data -> { 'hash' },
@@ -285,9 +285,12 @@ sub db_hash {
 
     if( $args{ 'only_cached' } ) {
 
+        my @from_cache = @{ $rv -> { 'fromCache' } };
+        $_ =~ s/^config\.// for @from_cache;
+
         my %collections = ();
 
-        @collections{ @{ $rv -> { 'fromCache' } } } = @$rv{ @{ $rv -> { 'fromCache' } } };
+        @collections{ @from_cache } = @{ $rv -> { 'collections' } }{ @from_cache };
 
         $rv -> { 'collections' } = \%collections;
     }
