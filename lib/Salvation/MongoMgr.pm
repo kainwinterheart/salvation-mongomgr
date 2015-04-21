@@ -11,7 +11,7 @@ use List::MoreUtils 'uniq';
 use String::ShellQuote 'shell_quote';
 use Salvation::MongoMgr::Connection ();
 
-our $VERSION = 0.04;
+our $VERSION = 0.05;
 
 sub new {
 
@@ -231,11 +231,13 @@ sub compare_collection_hashes {
                 if( ++$retries{ $host } == $max_retries ) {
 
                     $only_cached = false;
+                    delete( $hashes{ $host } );
                     Time::HiRes::sleep( 0.3 );
                     redo;
 
                 } elsif( $retries{ $host } < $max_retries ) {
 
+                    delete( $hashes{ $host } );
                     Time::HiRes::sleep( 0.3 );
                     redo;
                 }
