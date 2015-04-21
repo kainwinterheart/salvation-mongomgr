@@ -231,10 +231,12 @@ sub compare_collection_hashes {
                 if( ++$retries{ $host } == $max_retries ) {
 
                     $only_cached = false;
+                    Time::HiRes::sleep( 0.3 );
                     redo;
 
                 } elsif( $retries{ $host } < $max_retries ) {
 
+                    Time::HiRes::sleep( 0.3 );
                     redo;
                 }
             }
