@@ -10,8 +10,9 @@ use Time::HiRes ();
 use Salvation::TC ();
 use List::MoreUtils 'uniq';
 use Salvation::MongoMgr::Connection ();
+use String::ShellQuote 'shell_quote';
 
-our $VERSION = 0.06;
+our $VERSION = 0.07;
 
 sub new {
 
@@ -52,12 +53,13 @@ sub run {
     }
 
     my $system_args = $self -> _shellcmd( $host, 'mongo', [] );
+    @$system_args = map({shell_quote($_)} @$system_args);
 
-    unshift( @$system_args, 'echo', ( join( ' ', @$args ) ), '|' );
+    unshift( @$system_args, 'echo', ( join( ' ', map({shell_quote($_)} @$args) ) ), '|' );
 
     print STDERR join( ' ', '+', @$system_args ), "\n";
 
-    if( ( my $status = system( @$system_args ) ) != 0 ) {
+    if( ( my $status = system( join(' ', @$system_args) ) ) != 0 ) {
 
         $status >>= 8;
         die( "Command failed with code ${status}" );
