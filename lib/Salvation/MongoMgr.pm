@@ -4,14 +4,14 @@ use strict;
 use warnings;
 use boolean;
 
+use URI ();
 use Socket 'AF_INET6';
 use Time::HiRes ();
 use Salvation::TC ();
 use List::MoreUtils 'uniq';
-use String::ShellQuote 'shell_quote';
 use Salvation::MongoMgr::Connection ();
 
-our $VERSION = 0.05;
+our $VERSION = 0.06;
 
 sub new {
 
@@ -53,11 +53,11 @@ sub run {
 
     my $system_args = $self -> _shellcmd( $host, 'mongo', [] );
 
-    unshift( @$system_args, 'echo', shell_quote( join( ' ', @$args ) ), '|' );
+    unshift( @$system_args, 'echo', ( join( ' ', @$args ) ), '|' );
 
     print STDERR join( ' ', '+', @$system_args ), "\n";
 
-    if( ( my $status = system( join( ' ', @$system_args ) ) ) != 0 ) {
+    if( ( my $status = system( @$system_args ) ) != 0 ) {
 
         $status >>= 8;
         die( "Command failed with code ${status}" );
@@ -137,19 +137,17 @@ sub _shellcmd {
 
     if( $cmd eq 'mongo' ) {
 
+        my $o = URI->new($mgr->{connection}->make_connection_string);
+        $o->path($self -> { 'connection' } -> { 'db' });
         push( @db_args, (
-            shell_quote( sprintf( '%s/%s',
-                join( ',', @{ $mgr -> { 'connection' } -> servers_list() } ),
-                $self -> { 'connection' } -> { 'db' }
-            ) ),
-        ) );
+            ($o->as_string)));
     }
 
     if( $cmd eq 'mongofiles' ) {
 
         push( @db_args, (
-            '-h', shell_quote( $mgr -> { 'connection' } -> servers_list() -> [ 0 ] ),
-            '--db', shell_quote( $self -> { 'connection' } -> { 'db' } ),
+            '-h', ( $mgr -> { 'connection' } -> servers_list() -> [ 0 ] ),
+            '--db', ( $self -> { 'connection' } -> { 'db' } ),
         ) );
     }
 
@@ -179,12 +177,12 @@ sub _shellcmd {
 
     return [
         $cmd, @db_args,
-        ( defined $login ? ( '-u' => shell_quote( $login ) ) : () ),
-        ( defined $password ? ( '-p' => shell_quote( $password ) ) : () ),
+        ( defined $login ? ( '-u' => ( $login ) ) : () ),
+        ( defined $password ? ( '-p' => ( $password ) ) : () ),
         ( ( defined $login || defined $password ) ? (
             '--authenticationDatabase', $self -> { 'connection' } -> { 'auth_db_name' },
         ) : () ),
-        map( { shell_quote( $_ ) } @$args ),
+        map( { ( $_ ) } @$args ),
     ];
 }
 

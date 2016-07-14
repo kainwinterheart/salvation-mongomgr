@@ -6,7 +6,9 @@ WriteMakefile (
     ABSTRACT => 'MongoDB monitoring & management helper library',
     AUTHOR => [ 'Gennadiy Filatov <gfilatov@cpan.org>' ],
     LICENSE => 'mit',
+    EXE_FILES => [ 'bin/mongomgr.pl' ],
     PREREQ_PM => {
+        URI => 0,
         JSON => 0,
         boolean => 0,
         MongoDB => 0,
@@ -14,7 +16,6 @@ WriteMakefile (
         'Salvation::TC' => 0,
         'File::Slurp' => 0,
         'Getopt::Long' => 0,
-        'String::ShellQuote' => 0,
     },
     META_MERGE => {
     "meta-spec" => { version => 2 },

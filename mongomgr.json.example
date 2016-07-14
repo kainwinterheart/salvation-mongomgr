@@ -1,0 +1,14 @@
+{
+  "servers_list":[
+    "localhost:27017"
+                 ],
+  "connection_args": {
+    "replicaSet": "replicaset name (optional)"
+  },
+  "db_auth":{
+            "database name":{
+                "login": "db login",
+                "password": "db password"
+            }
+        }
+}

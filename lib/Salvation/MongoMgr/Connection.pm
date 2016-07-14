@@ -6,6 +6,7 @@ use warnings;
 use boolean;
 use feature 'state';
 
+use URI ();
 use JSON 'from_json';
 use File::Slurp 'read_file';
 use Salvation::TC ();
@@ -69,6 +70,12 @@ sub new {
     return $self;
 }
 
+sub make_connection_string {
+    my ($self, $mongo_servers_list) = @_;
+    $mongo_servers_list //= $self -> { '_mongo_servers_list' };
+    return "mongodb://${mongo_servers_list}" . ($self->{connection_args} // '');
+}
+
 sub _connect {
 
     my ( $self ) = @_;
@@ -88,7 +95,7 @@ sub _connect {
         my ( $login, $password ) = @{ $self -> credentials() }{ 'login', 'password' };
 
         $self -> { '_connection' } = MongoDB::MongoClient -> new(
-            host => "mongodb://${mongo_servers_list}",
+            host => $self->make_connection_string,
             timeout => ( $self -> { 'timeout' } // 20_000 ),
             query_timeout => ( $self -> { 'query_timeout' } // 600_000 ), # in ms
             wtimeout => ( $self -> { 'wtimeout' } // 30_000 ),
@@ -158,9 +165,15 @@ sub servers_list {
 
             my $config = from_json( scalar( read_file( $self -> config_file() ) ) );
 
-            Salvation::TC -> assert( $config, 'HashRef( ArrayRef[Str] :servers_list! )' );
+            Salvation::TC -> assert( $config, 'HashRef( ArrayRef[Str] :servers_list!, HashRef[Str] :connection_args )' );
 
             $self -> { 'servers_list' } = $config -> { 'servers_list' };
+
+            if(exists($config->{connection_args})) {
+                my $o = URI->new;
+                $o->query_form(%{$config->{connection_args}});
+                $self->{connection_args} = '/' . $o->as_string;
+            }
         }
     }
 

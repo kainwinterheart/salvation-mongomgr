@@ -10,6 +10,7 @@ BEGIN {
     require Carp;
 
     $SIG{ __DIE__ } = \&Carp::confess;
+    $SIG{ __WARN__ } = \&Carp::cluck;
 };
 
 use JSON ();
